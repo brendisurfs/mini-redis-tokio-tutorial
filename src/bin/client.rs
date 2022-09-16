@@ -41,28 +41,44 @@ async fn main() {
     // the redis connection.
     // the multi-producer allows messages to be sent from many tasks.
 
-    tokio::spawn(async move {
-        tx.send("sending from the first handle").await;
-        // let response = client.get("hello").await;
+    let thread_one_handle = tokio::spawn(async move {
+        let cmd = Command::Get {
+            key: "hello".to_string(),
+        };
+        tx.send(cmd).await.expect("could not send command");
     });
 
-    tokio::spawn(async move {
-        tx_two.send("sending from the second handle").await;
+    let thread_two_handle = tokio::spawn(async move {
+        let cmd = Command::Set {
+            key: "foo".to_string(),
+            val: "bar".into(),
+        };
+        tx_two.send(cmd).await.expect("could not send Set command");
         // client.set("foo", "bar".into()).await;
     });
 
     let chan_manager = tokio::spawn(async move {
         let mut client = client::connect("127.0.0.1:6379")
             .await
-            .expect("could not connet to client");
+            .expect("could not connect to client");
 
         while let Some(cmd) = rx.recv().await {
             use Command::*;
 
             match cmd {
-                Get { key } => client.get(&key).await,
-                Set { key, val } => client.set(&key, val).await,
+                Get { key } => {
+                    client.get(&key).await;
+                }
+                Set { key, val } => {
+                    client.set(&key, val).await;
+                }
             }
         }
     });
+
+    // we await the join handles to ensure the commands fully complete
+    // before the process exits.
+    thread_one_handle.await.unwrap();
+    thread_two_handle.await.unwrap();
+    chan_manager.await.unwrap();
 }
