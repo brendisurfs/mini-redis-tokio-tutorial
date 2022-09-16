@@ -8,7 +8,7 @@
 
 // ------------ project -----------------
 use bytes::Bytes;
-use log::{error, info, warn};
+use log::info;
 use mini_redis::{Connection, Frame};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -20,11 +20,12 @@ type Db = Arc<Mutex<HashMap<String, Bytes>>>;
 #[tokio::main]
 async fn main() {
     // bind the listener to the specific addr we want.
+    env_logger::init();
     let listener = TcpListener::bind("127.0.0.1:6379")
         .await
         .expect("could not bind to port");
 
-    info!("starting server");
+    println!("starting server");
 
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
 
@@ -88,12 +89,12 @@ async fn process(socket: TcpStream, db: Db) {
 }
 
 // since we have little contention with synchronous mutex, mutex sharding is fine to use.
-type ShardedDb = Arc<Vec<Mutex<HashMap<String, Vec<u8>>>>>;
-
-fn new_sharded_db(num_shards: usize) -> ShardedDb {
-    let mut db = Vec::with_capacity(num_shards);
-    for _ in 0..num_shards {
-        db.push(Mutex::new(HashMap::new()));
-    }
-    Arc::new(db)
-}
+// type ShardedDb = Arc<Vec<Mutex<HashMap<String, Vec<u8>>>>>;
+//
+// fn new_sharded_db(num_shards: usize) -> ShardedDb {
+//     let mut db = Vec::with_capacity(num_shards);
+//     for _ in 0..num_shards {
+//         db.push(Mutex::new(HashMap::new()));
+//     }
+//     Arc::new(db)
+// }
