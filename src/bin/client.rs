@@ -41,17 +41,28 @@ async fn main() {
     // the redis connection.
     // the multi-producer allows messages to be sent from many tasks.
 
-    let mut client = client::connect("127.0.0.1:6379")
-        .await
-        .expect("could not connet to client");
-
-    let thread_one = tokio::spawn(async move {
-        tx_two.send("sending from the first handle").await;
+    tokio::spawn(async move {
+        tx.send("sending from the first handle").await;
         // let response = client.get("hello").await;
     });
 
-    let thread_two = tokio::spawn(async {
+    tokio::spawn(async move {
         tx_two.send("sending from the second handle").await;
         // client.set("foo", "bar".into()).await;
+    });
+
+    let chan_manager = tokio::spawn(async move {
+        let mut client = client::connect("127.0.0.1:6379")
+            .await
+            .expect("could not connet to client");
+
+        while let Some(cmd) = rx.recv().await {
+            use Command::*;
+
+            match cmd {
+                Get { key } => client.get(&key).await,
+                Set { key, val } => client.set(&key, val).await,
+            }
+        }
     });
 }
